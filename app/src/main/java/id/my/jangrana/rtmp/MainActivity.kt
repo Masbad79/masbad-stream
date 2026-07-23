@@ -53,6 +53,10 @@ class MainActivity : AppCompatActivity() {
     private var controlsHidden = false
     private var lastStopStatus = "Siap"
     private var streamWakeLock: PowerManager.WakeLock? = null
+    private var userRequestedStop = false
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 5
+    private val reconnectHandler = Handler(Looper.getMainLooper())
 
     private val baseRtmpUrl = "rtmp://stream.jangrana.my.id:1935/"
 
@@ -99,15 +103,16 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     override fun onConnectionSuccess() = runOnUiThread {
+                        reconnectAttempts = 0
                         tvStatus.text = if (isAudioOnly) "Audio Only" else "Streaming LIVE..."
                     }
 
                     override fun onConnectionFailed(reason: String) = runOnUiThread {
-                        stopStream("Gagal: $reason")
+                        handleUnexpectedDisconnect("Gagal: $reason")
                     }
 
                     override fun onDisconnect() = runOnUiThread {
-                        stopStream("Terputus")
+                        handleUnexpectedDisconnect("Terputus")
                     }
 
                     override fun onAuthError() = runOnUiThread {
@@ -312,6 +317,7 @@ class MainActivity : AppCompatActivity() {
                     if (!cam.isOnPreview) return@let
                 }
                 try {
+                    userRequestedStop = false
                     cam.startStream(endpoint)
                     lastStopStatus = "Siap"
                     isStreaming = true
@@ -331,6 +337,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopStream(status: String = lastStopStatus) {
+        userRequestedStop = true
+        reconnectHandler.removeCallbacksAndMessages(null)
+        reconnectAttempts = 0
         lastStopStatus = status
         try {
             rtmpCamera?.let { cam ->
@@ -344,6 +353,30 @@ class MainActivity : AppCompatActivity() {
         btnStream.text = "Mulai Stream"
         btnStream.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_blue_dark))
         tvStatus.text = status
+    }
+
+    private fun handleUnexpectedDisconnect(status: String) {
+        if (userRequestedStop) {
+            stopStream(status)
+            return
+        }
+        try {
+            rtmpCamera?.let { cam ->
+                if (cam.isStreaming) cam.stopStream()
+            }
+        } catch (e: Exception) { }
+        isStreaming = false
+
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            stopStream("$status. Reconnect gagal")
+            return
+        }
+
+        reconnectAttempts += 1
+        tvStatus.text = "$status. Reconnect $reconnectAttempts/$maxReconnectAttempts..."
+        reconnectHandler.postDelayed({
+            if (!userRequestedStop) startStream()
+        }, 2000L)
     }
 
     override fun onDestroy() {
