@@ -247,7 +247,7 @@ class MainActivity : AppCompatActivity() {
                         res.width, res.height, res.fps, res.bitrate, res.iframeInterval,
                         0,
                         MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
-                        MediaCodecInfo.CodecLevel.AVCLevel31
+                        MediaCodecInfo.CodecProfileLevel.AVCLevel31
                     )
                     if (!videoOk) {
                         tvStatus.text = "Gagal init video encoder"
