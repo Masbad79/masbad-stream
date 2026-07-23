@@ -180,6 +180,15 @@ class MainActivity : AppCompatActivity() {
         btnAudioOnly.setOnClickListener {
             isAudioOnly = !isAudioOnly
             updateAudioLabel()
+
+            if (isAudioOnly) {
+                glView?.visibility = View.GONE
+                rtmpCamera?.let { if (it.isOnPreview) it.stopPreview() }
+            } else {
+                glView?.visibility = View.VISIBLE
+                rtmpCamera?.let { if (!it.isOnPreview) initCamera() }
+            }
+
             if (isStreaming) {
                 stopStream()
                 startStream()
@@ -219,14 +228,16 @@ class MainActivity : AppCompatActivity() {
     private fun initCamera() {
         try {
             rtmpCamera?.let { cam ->
-                if (!cam.isOnPreview) {
+                if (cam.isOnPreview) return@let
+
+                if (!isAudioOnly) {
                     val res = getResolution()
                     val rotation = if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 90 else 0
+                    cam.prepareVideo(res.width, res.height, 30, res.bitrate, rotation)
+                }
+                cam.prepareAudio(64 * 1000, 44100, false, false, false)
 
-                    if (!isAudioOnly) {
-                        cam.prepareVideo(res.width, res.height, 30, res.bitrate, rotation)
-                    }
-                    cam.prepareAudio(64 * 1000, 44100, false, false, false)
+                if (!isAudioOnly) {
                     cam.startPreview()
                 }
             }
