@@ -53,8 +53,8 @@ class MainActivity : AppCompatActivity() {
     private var controlsHidden = false
     private var currentResolutionIdx = 0
     private val resolutions = listOf(
-        ResConfig("720p", 1280, 720, 1000),
-        ResConfig("1080p", 1920, 1080, 2000),
+        ResConfig("720p", 1280, 720, 500),
+        ResConfig("1080p", 1920, 1080, 1000),
     )
 
     private val baseRtmpUrl = "rtmp://stream.jangrana.my.id:1935/"
@@ -152,7 +152,6 @@ class MainActivity : AppCompatActivity() {
 
         gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                try { rtmpCamera?.enableAutoFocus() } catch (ex: Exception) { }
                 tvStatus.text = "Fokus"
                 Handler(Looper.getMainLooper()).postDelayed({
                     if (!isStreaming) tvStatus.text = "Siap"
@@ -244,28 +243,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initCamera() {
-        try {
-            rtmpCamera?.let { cam ->
-                val res = resolutions[currentResolutionIdx]
-                val rotation = if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 90 else 0
-
-                if (!isAudioOnly) {
-                    try {
-                        cam.prepareVideo(res.width, res.height, 30, res.bitrateKbps * 1000, rotation)
-                    } catch (e: Exception) {
-                        tvStatus.text = "Video: ${e.localizedMessage}"
-                    }
-                }
-                try {
-                    cam.prepareAudio(64 * 1000, 44100, false, false, false)
-                } catch (e: Exception) {
-                    tvStatus.text = "Audio: ${e.localizedMessage}"
-                }
-                startPreview()
-            }
-        } catch (e: Exception) {
-            tvStatus.text = "Init: ${e.localizedMessage}"
-        }
+        startPreview()
     }
 
     private fun toggleControls() {
