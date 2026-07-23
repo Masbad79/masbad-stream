@@ -2,17 +2,16 @@ package id.my.jangrana.rtmp
 
 import android.Manifest
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Bundle
-import android.content.pm.ActivityInfo
 import android.os.Handler
 import android.os.Looper
 import android.view.SurfaceHolder
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -37,10 +36,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvStatus: TextView
     private lateinit var tvZoomLabel: TextView
     private lateinit var zoomSeek: SeekBar
-    private lateinit var secretGate: View
-    private lateinit var etSecret: EditText
-    private lateinit var btnUnlock: Button
-    private lateinit var tvSecretError: TextView
     private lateinit var controls: View
 
     private var rtmpCamera: RtmpCamera2? = null
@@ -51,8 +46,8 @@ class MainActivity : AppCompatActivity() {
     private var surfaceReady = false
     private var permissionsGranted = false
     private var currentPath = 1
+    private var controlsHidden = false
 
-    private val secretPassword = "mbg"
     private val baseRtmpUrl = "rtmp://stream.jangrana.my.id:1935/"
 
     private val permissions = arrayOf(
@@ -76,10 +71,6 @@ class MainActivity : AppCompatActivity() {
         tvStatus = findViewById(R.id.tvStatus)
         tvZoomLabel = findViewById(R.id.tvZoomLabel)
         zoomSeek = findViewById(R.id.zoomSeek)
-        secretGate = findViewById(R.id.secretGate)
-        etSecret = findViewById(R.id.etSecret)
-        btnUnlock = findViewById(R.id.btnUnlock)
-        tvSecretError = findViewById(R.id.tvSecretError)
         controls = findViewById(R.id.controls)
 
         val streamKey = intent.getStringExtra("stream_key") ?: ""
@@ -94,6 +85,7 @@ class MainActivity : AppCompatActivity() {
             currentPath = num.coerceIn(1, 12)
         }
         updatePathLabel()
+        updateRotateLabel()
 
         try {
             glView?.setZOrderOnTop(true)
@@ -147,27 +139,8 @@ class MainActivity : AppCompatActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) { surfaceReady = false }
         })
 
-        btnUnlock.setOnClickListener {
-            val pass = etSecret.text.toString().trim()
-            if (pass == secretPassword) {
-                secretGate.visibility = View.GONE
-                controls.visibility = View.VISIBLE
-                checkPermissions()
-            } else {
-                tvSecretError.text = "Password salah"
-                etSecret.selectAll()
-            }
-        }
-
-        etSecret.setOnEditorActionListener { _, _, _ ->
-            btnUnlock.performClick()
-            true
-        }
-
-        updateRotateLabel()
-
-        secretGate.visibility = View.VISIBLE
-        controls.visibility = View.GONE
+        glView?.isClickable = true
+        glView?.setOnClickListener { toggleControls() }
 
         btnStream.setOnClickListener { toggleStream() }
 
@@ -216,14 +189,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        btnLogout.setOnClickListener {
-            if (isStreaming) stopStream()
-            val intent = Intent(this, LoginActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
-        }
-
         btnRotate.setOnClickListener {
             val cur = resources.configuration.orientation
             if (cur == Configuration.ORIENTATION_LANDSCAPE) {
@@ -231,6 +196,14 @@ class MainActivity : AppCompatActivity() {
             } else {
                 requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
+        }
+
+        btnLogout.setOnClickListener {
+            if (isStreaming) stopStream()
+            val intent = Intent(this, LoginActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            startActivity(intent)
+            finish()
         }
 
         zoomSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -242,6 +215,13 @@ class MainActivity : AppCompatActivity() {
             override fun onStartTrackingTouch(sb: SeekBar) {}
             override fun onStopTrackingTouch(sb: SeekBar) {}
         })
+
+        checkPermissions()
+    }
+
+    private fun toggleControls() {
+        controlsHidden = !controlsHidden
+        controls.visibility = if (controlsHidden) View.GONE else View.VISIBLE
     }
 
     private fun updatePathLabel() {
