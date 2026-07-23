@@ -56,8 +56,8 @@ class MainActivity : AppCompatActivity() {
 
     private var currentResolutionIdx = 0
     private val resolutions = listOf(
-        ResConfig("720p", 1280, 720, 2000),
-        ResConfig("1080p", 1920, 1080, 4000),
+        ResConfig("720p", 1280, 720, 1000),
+        ResConfig("1080p", 1920, 1080, 2000),
     )
 
     private val baseRtmpUrl = "rtmp://stream.jangrana.my.id:1935/"
@@ -338,36 +338,46 @@ class MainActivity : AppCompatActivity() {
                     if (!startPreview()) return@let
                 }
 
-                val res = resolutions[currentResolutionIdx]
-                val videoPrepared = try {
-                    cam.prepareVideo(res.width, res.height, 30, res.bitrateKbps * 1000, 0)
-                } catch (e: Exception) {
-                    tvStatus.text = "Video prepare: ${e.localizedMessage}"
-                    false
-                }
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val res = resolutions[currentResolutionIdx]
+                    var ok = true
 
-                val audioPrepared = try {
-                    cam.prepareAudio()
-                } catch (e: Exception) {
-                    tvStatus.text = "Audio prepare: ${e.localizedMessage}"
-                    false
-                }
-
-                if (videoPrepared && audioPrepared) {
-                    try {
-                        cam.startStream(endpoint)
-                        isStreaming = true
-                        btnStream.text = "Hentikan"
-                        btnStream.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_red_dark))
-                        tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
-                        if (isAudioOnly) glView?.visibility = View.GONE
-                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    } catch (e: IOException) {
-                        tvStatus.text = "Gagal: ${e.localizedMessage}"
+                    if (!isAudioOnly) {
+                        try {
+                            if (!cam.prepareVideo(res.width, res.height, 30, res.bitrateKbps * 1000, 0)) {
+                                tvStatus.text = "Gagal siapkan video encoder"
+                                ok = false
+                            }
+                        } catch (e: Exception) {
+                            tvStatus.text = "Video: ${e.localizedMessage}"
+                            ok = false
+                        }
                     }
-                } else {
-                    tvStatus.text = "Gagal siapkan encoder"
-                }
+
+                    try {
+                        if (!cam.prepareAudio()) {
+                            tvStatus.text = "Gagal siapkan audio encoder"
+                            ok = false
+                        }
+                    } catch (e: Exception) {
+                        tvStatus.text = "Audio: ${e.localizedMessage}"
+                        ok = false
+                    }
+
+                    if (ok) {
+                        try {
+                            cam.startStream(endpoint)
+                            isStreaming = true
+                            btnStream.text = "Hentikan"
+                            btnStream.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_red_dark))
+                            tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
+                            if (isAudioOnly) glView?.visibility = View.GONE
+                            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        } catch (e: IOException) {
+                            tvStatus.text = "Gagal: ${e.localizedMessage}"
+                        }
+                    }
+                }, 500)
             }
         } catch (e: Exception) {
             tvStatus.text = "Stream error: ${e.localizedMessage}"
