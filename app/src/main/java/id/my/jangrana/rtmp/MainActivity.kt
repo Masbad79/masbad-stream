@@ -243,13 +243,7 @@ class MainActivity : AppCompatActivity() {
 
                 if (!isAudioOnly) {
                     val res = getResolution()
-                    val videoOk = cam.prepareVideo(
-                        res.width, res.height, res.fps, res.bitrate, res.iframeInterval,
-                        0,
-                        MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline,
-                        MediaCodecInfo.CodecProfileLevel.AVCLevel31
-                    )
-                    if (!videoOk) {
+                    if (!cam.prepareVideo(res.width, res.height, res.fps, res.bitrate, res.iframeInterval, 0)) {
                         tvStatus.text = "Gagal init video encoder"
                         return@let
                     }
@@ -273,7 +267,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getResolution(): ResConfig {
-        return ResConfig(640, 360, 20, 800 * 1000, 2)
+        return ResConfig(640, 360, 15, 600 * 1000, 2)
     }
 
     data class ResConfig(val width: Int, val height: Int, val fps: Int, val bitrate: Int, val iframeInterval: Int)
