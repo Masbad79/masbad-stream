@@ -20,9 +20,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.pedro.common.ConnectChecker
-import com.pedro.library.rtmp.RtmpCamera2
-import com.pedro.library.view.OpenGlView
+import com.pedro.rtmp.utils.ConnectCheckerRtmp
+import com.pedro.rtplibrary.rtmp.RtmpCamera2
+import com.pedro.rtplibrary.view.OpenGlView
 import java.io.IOException
 
 class MainActivity : AppCompatActivity() {
@@ -90,35 +90,35 @@ class MainActivity : AppCompatActivity() {
 
         try {
             rtmpCamera = glView?.let { gv ->
-                RtmpCamera2(gv, object : ConnectChecker {
-                    override fun onConnectionStarted(url: String) = runOnUiThread {
+                RtmpCamera2(gv, object : ConnectCheckerRtmp {
+                    override fun onConnectionStartedRtmp(rtmpUrl: String) = runOnUiThread {
                         tvStatus.text = "Menghubungkan..."
                     }
 
-                    override fun onConnectionSuccess() = runOnUiThread {
+                    override fun onConnectionSuccessRtmp() = runOnUiThread {
                         tvStatus.text = if (isAudioOnly) "Audio Only" else "Streaming LIVE..."
                     }
 
-                    override fun onConnectionFailed(reason: String) = runOnUiThread {
+                    override fun onConnectionFailedRtmp(reason: String) = runOnUiThread {
                         tvStatus.text = "Koneksi gagal: $reason"
                         stopStream()
                     }
 
-                    override fun onDisconnect() = runOnUiThread {
+                    override fun onDisconnectRtmp() = runOnUiThread {
                         tvStatus.text = "Terputus"
                         stopStream()
                     }
 
-                    override fun onAuthError() = runOnUiThread {
+                    override fun onAuthErrorRtmp() = runOnUiThread {
                         tvStatus.text = "Auth RTMP gagal"
                         stopStream()
                     }
 
-                    override fun onAuthSuccess() = runOnUiThread {
+                    override fun onAuthSuccessRtmp() = runOnUiThread {
                         tvStatus.text = "Auth RTMP OK"
                     }
 
-                    override fun onNewBitrate(bitrate: Long) = Unit
+                    override fun onNewBitrateRtmp(bitrate: Long) = Unit
                 })
             }
         } catch (e: Exception) {
@@ -307,7 +307,7 @@ class MainActivity : AppCompatActivity() {
 
         try {
             rtmpCamera?.let { cam ->
-                if (!cam.isOnPreview) {
+                if (!isAudioOnly && !cam.isOnPreview) {
                     initCamera()
                     if (!cam.isOnPreview) return@let
                 }
@@ -332,7 +332,6 @@ class MainActivity : AppCompatActivity() {
         try {
             rtmpCamera?.let { cam ->
                 cam.stopStream()
-                cam.stopPreview()
             }
         } catch (e: Exception) { }
         isStreaming = false
