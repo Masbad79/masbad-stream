@@ -267,7 +267,6 @@ class MainActivity : AppCompatActivity() {
                     if (isPortrait) {
                         gl?.setRotation(90)
                     }
-                    gl?.setKeepAspectRatio(true)
                 }
                 val audioOk = cam.prepareAudio(32 * 1000, 44100, false, false, false)
                 if (!audioOk) {
