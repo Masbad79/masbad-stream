@@ -64,14 +64,15 @@ class MainActivity : AppCompatActivity() {
             etKey.isEnabled = false
         }
 
+        val gv = glView
         try {
-            glView?.setZOrderOnTop(true)
+            gv?.setZOrderOnTop(true)
         } catch (e: Exception) {
             tvStatus.text = "GL init: ${e.localizedMessage}"
         }
 
         try {
-            rtmpCamera = RtmpCamera2(glView, object : ConnectChecker {
+            rtmpCamera = RtmpCamera2(gv, object : ConnectChecker {
                 override fun onConnectionStarted(url: String) = runOnUiThread {
                     tvStatus.text = "Menghubungkan..."
                 }
