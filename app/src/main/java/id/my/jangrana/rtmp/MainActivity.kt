@@ -5,12 +5,15 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Color
+import android.graphics.PorterDuff
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.SeekBar
@@ -32,6 +35,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnMirror: Button
     private lateinit var btnAudioOnly: Button
     private lateinit var btnRotate: Button
+    private lateinit var btnResCycle: Button
     private lateinit var btnStream: Button
     private lateinit var btnLogout: Button
     private lateinit var tvStatus: TextView
@@ -50,6 +54,12 @@ class MainActivity : AppCompatActivity() {
     private var currentPath = 1
     private var controlsHidden = false
 
+    private var currentResolutionIdx = 0
+    private val resolutions = listOf(
+        ResConfig("720p", 1280, 720, 2000),
+        ResConfig("1080p", 1920, 1080, 4000),
+    )
+
     private val baseRtmpUrl = "rtmp://stream.jangrana.my.id:1935/"
 
     private val permissions = arrayOf(
@@ -57,6 +67,10 @@ class MainActivity : AppCompatActivity() {
         Manifest.permission.RECORD_AUDIO
     )
     private val permReqCode = 100
+
+    private lateinit var gestureDetector: GestureDetector
+
+    data class ResConfig(val label: String, val width: Int, val height: Int, val bitrateKbps: Int)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +82,7 @@ class MainActivity : AppCompatActivity() {
         btnMirror = findViewById(R.id.btnMirror)
         btnAudioOnly = findViewById(R.id.btnAudioOnly)
         btnRotate = findViewById(R.id.btnRotate)
+        btnResCycle = findViewById(R.id.btnResCycle)
         btnStream = findViewById(R.id.btnStream)
         btnLogout = findViewById(R.id.btnLogout)
         tvStatus = findViewById(R.id.tvStatus)
@@ -89,6 +104,7 @@ class MainActivity : AppCompatActivity() {
         }
         updatePathLabel()
         updateRotateLabel()
+        updateResLabel()
 
         try {
             rtmpCamera = glView?.let { gv ->
@@ -136,7 +152,25 @@ class MainActivity : AppCompatActivity() {
             override fun surfaceDestroyed(holder: SurfaceHolder) { surfaceReady = false }
         })
 
-        tapOverlay.setOnClickListener { toggleControls() }
+        gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                try { rtmpCamera?.enableAutoFocus() } catch (ex: Exception) { }
+                tvStatus.text = "Fokus"
+                Handler(Looper.getMainLooper()).postDelayed({
+                    if (!isStreaming) tvStatus.text = "Siap"
+                }, 1500)
+                return true
+            }
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                toggleControls()
+                return true
+            }
+        })
+
+        tapOverlay.setOnTouchListener { _, event ->
+            gestureDetector.onTouchEvent(event)
+            true
+        }
 
         btnStream.setOnClickListener { toggleStream() }
 
@@ -194,6 +228,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        btnResCycle.setOnClickListener {
+            currentResolutionIdx = (currentResolutionIdx + 1) % resolutions.size
+            updateResLabel()
+            if (rtmpCamera?.isOnPreview == true) {
+                try { rtmpCamera?.startPreview() } catch (e: Exception) { }
+            }
+        }
+
         btnLogout.setOnClickListener {
             if (isStreaming) stopStream()
             val intent = Intent(this, LoginActivity::class.java)
@@ -231,6 +273,10 @@ class MainActivity : AppCompatActivity() {
     private fun updateRotateLabel() {
         val cur = resources.configuration.orientation
         btnRotate.text = if (cur == Configuration.ORIENTATION_LANDSCAPE) "Potrait" else "Landscape"
+    }
+
+    private fun updateResLabel() {
+        btnResCycle.text = resolutions[currentResolutionIdx].label
     }
 
     private fun getStreamEndpoint(): String {
@@ -290,29 +336,41 @@ class MainActivity : AppCompatActivity() {
             rtmpCamera?.let { cam ->
                 if (!cam.isOnPreview) {
                     if (!startPreview()) return@let
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        doStream(cam, endpoint)
-                    }, 500)
+                }
+
+                val res = resolutions[currentResolutionIdx]
+                val videoPrepared = try {
+                    cam.prepareVideo(res.width, res.height, 30, res.bitrateKbps * 1000, 0)
+                } catch (e: Exception) {
+                    tvStatus.text = "Video prepare: ${e.localizedMessage}"
+                    false
+                }
+
+                val audioPrepared = try {
+                    cam.prepareAudio()
+                } catch (e: Exception) {
+                    tvStatus.text = "Audio prepare: ${e.localizedMessage}"
+                    false
+                }
+
+                if (videoPrepared && audioPrepared) {
+                    try {
+                        cam.startStream(endpoint)
+                        isStreaming = true
+                        btnStream.text = "Hentikan"
+                        btnStream.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_red_dark))
+                        tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
+                        if (isAudioOnly) glView?.visibility = View.GONE
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } catch (e: IOException) {
+                        tvStatus.text = "Gagal: ${e.localizedMessage}"
+                    }
                 } else {
-                    doStream(cam, endpoint)
+                    tvStatus.text = "Gagal siapkan encoder"
                 }
             }
         } catch (e: Exception) {
             tvStatus.text = "Stream error: ${e.localizedMessage}"
-        }
-    }
-
-    private fun doStream(cam: RtmpCamera2, endpoint: String) {
-        try {
-            cam.startStream(endpoint)
-            isStreaming = true
-            btnStream.text = "Hentikan"
-            btnStream.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_red_dark))
-            tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
-            if (isAudioOnly) glView?.visibility = View.GONE
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        } catch (e: IOException) {
-            tvStatus.text = "Gagal: ${e.localizedMessage}"
         }
     }
 
