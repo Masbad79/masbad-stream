@@ -51,8 +51,6 @@ class MainActivity : AppCompatActivity() {
     private var permissionsGranted = false
     private var currentPath = 1
     private var controlsHidden = false
-    private var encoderPrepared = false
-
     private var currentResolutionIdx = 0
     private val resolutions = listOf(
         ResConfig("720p", 1280, 720, 1000),
@@ -146,10 +144,7 @@ class MainActivity : AppCompatActivity() {
         glView?.holder?.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 surfaceReady = true
-                if (permissionsGranted) {
-                    prepareEncoders()
-                    startPreview()
-                }
+                if (permissionsGranted) initCamera()
             }
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
             override fun surfaceDestroyed(holder: SurfaceHolder) { surfaceReady = false }
@@ -202,10 +197,9 @@ class MainActivity : AppCompatActivity() {
         btnAudioOnly.setOnClickListener {
             isAudioOnly = !isAudioOnly
             updateAudioLabel()
-
             if (isStreaming) {
                 stopStream()
-                prepareEncoders()
+                initCamera()
                 startStream()
             }
         }
@@ -223,11 +217,8 @@ class MainActivity : AppCompatActivity() {
             currentResolutionIdx = (currentResolutionIdx + 1) % resolutions.size
             updateResLabel()
             if (!isStreaming) {
-                if (rtmpCamera?.isOnPreview == true) {
-                    try { rtmpCamera?.stopPreview() } catch (e: Exception) { }
-                }
-                prepareEncoders()
-                startPreview()
+                try { rtmpCamera?.stopPreview() } catch (e: Exception) { }
+                initCamera()
             }
         }
 
@@ -252,36 +243,28 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
     }
 
-    private fun prepareEncoders() {
-        encoderPrepared = false
+    private fun initCamera() {
         try {
             rtmpCamera?.let { cam ->
-                var ok = true
+                val res = resolutions[currentResolutionIdx]
+                val rotation = if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) 90 else 0
+
                 if (!isAudioOnly) {
-                    val res = resolutions[currentResolutionIdx]
                     try {
-                        if (!cam.prepareVideo(res.width, res.height, res.bitrateKbps * 1000)) {
-                            tvStatus.text = "Gagal siapkan video"
-                            ok = false
-                        }
+                        cam.prepareVideo(res.width, res.height, 30, res.bitrateKbps * 1000, rotation)
                     } catch (e: Exception) {
                         tvStatus.text = "Video: ${e.localizedMessage}"
-                        ok = false
                     }
                 }
                 try {
-                    if (!cam.prepareAudio()) {
-                        tvStatus.text = "Gagal siapkan audio"
-                        ok = false
-                    }
+                    cam.prepareAudio(64 * 1000, 44100, false, false, false)
                 } catch (e: Exception) {
                     tvStatus.text = "Audio: ${e.localizedMessage}"
-                    ok = false
                 }
-                encoderPrepared = ok
+                startPreview()
             }
         } catch (e: Exception) {
-            tvStatus.text = "Encoder: ${e.localizedMessage}"
+            tvStatus.text = "Init: ${e.localizedMessage}"
         }
     }
 
@@ -308,7 +291,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateAudioLabel() {
-        btnAudioOnly.text = if (isAudioOnly) "Audio Only" else "Stream Audio"
+        btnAudioOnly.text = if (isAudioOnly) "Audio: ON" else "Audio: OFF"
     }
 
     private fun getStreamEndpoint(): String {
@@ -321,10 +304,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (needed.isEmpty()) {
             permissionsGranted = true
-            if (surfaceReady) {
-                prepareEncoders()
-                startPreview()
-            }
+            if (surfaceReady) initCamera()
         } else {
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), permReqCode)
         }
@@ -335,10 +315,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == permReqCode) {
             if (results.all { it == PackageManager.PERMISSION_GRANTED }) {
                 permissionsGranted = true
-                if (surfaceReady) {
-                    prepareEncoders()
-                    startPreview()
-                }
+                if (surfaceReady) initCamera()
             } else {
                 Toast.makeText(this, "Izin kamera & audio diperlukan", Toast.LENGTH_LONG).show()
             }
@@ -368,14 +345,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startStream() {
-        if (!encoderPrepared) {
-            prepareEncoders()
-        }
         val endpoint = getStreamEndpoint()
 
         try {
             rtmpCamera?.let { cam ->
                 if (!cam.isOnPreview) {
+                    initCamera()
                     if (!startPreview()) return@let
                 }
                 try {
@@ -427,11 +402,8 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateRotateLabel()
-        if (permissionsGranted && surfaceReady) {
-            if (!isStreaming) {
-                prepareEncoders()
-                startPreview()
-            }
+        if (permissionsGranted && surfaceReady && !isStreaming) {
+            initCamera()
         }
     }
 
