@@ -91,6 +91,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         glView = findViewById(R.id.glView)
+        glView?.setKeepAspectRatio(true)
         btnCamera = findViewById(R.id.btnCamera)
         btnPathCycle = findViewById(R.id.btnPathCycle)
         btnMirror = findViewById(R.id.btnMirror)
@@ -256,16 +257,15 @@ class MainActivity : AppCompatActivity() {
 
                 if (!isAudioOnly) {
                     val res = resolutions[currentResIdx]
-                    val rotation = when (windowManager.defaultDisplay.rotation) {
-                        Surface.ROTATION_0 -> 90
-                        Surface.ROTATION_90 -> 0
-                        Surface.ROTATION_180 -> 270
-                        Surface.ROTATION_270 -> 180
-                        else -> 0
-                    }
-                    if (!cam.prepareVideo(res.width, res.height, res.fps, res.bitrate, res.iframeInterval, rotation)) {
+                    val isPortrait = windowManager.defaultDisplay.rotation == Surface.ROTATION_0 ||
+                            windowManager.defaultDisplay.rotation == Surface.ROTATION_180
+                    val (vw, vh) = if (isPortrait) res.height to res.width else res.width to res.height
+                    if (!cam.prepareVideo(vw, vh, res.fps, res.bitrate, res.iframeInterval, 0)) {
                         tvStatus.text = "Gagal init video encoder"
                         return@let
+                    }
+                    if (isPortrait) {
+                        cam.getGlInterface()?.setRotation(90)
                     }
                 }
                 val audioOk = cam.prepareAudio(32 * 1000, 44100, false, false, false)
