@@ -64,44 +64,45 @@ class MainActivity : AppCompatActivity() {
             etKey.isEnabled = false
         }
 
-        val gv = glView
         try {
-            gv?.setZOrderOnTop(true)
+            glView?.setZOrderOnTop(true)
         } catch (e: Exception) {
             tvStatus.text = "GL init: ${e.localizedMessage}"
         }
 
         try {
-            rtmpCamera = RtmpCamera2(gv, object : ConnectChecker {
-                override fun onConnectionStarted(url: String) = runOnUiThread {
-                    tvStatus.text = "Menghubungkan..."
-                }
+            rtmpCamera = glView?.let { gv ->
+                RtmpCamera2(gv, object : ConnectChecker {
+                    override fun onConnectionStarted(url: String) = runOnUiThread {
+                        tvStatus.text = "Menghubungkan..."
+                    }
 
-                override fun onConnectionSuccess() = runOnUiThread {
-                    tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
-                }
+                    override fun onConnectionSuccess() = runOnUiThread {
+                        tvStatus.text = if (isAudioOnly) "Streaming Audio Only..." else "Streaming LIVE..."
+                    }
 
-                override fun onConnectionFailed(reason: String) = runOnUiThread {
-                    tvStatus.text = "Koneksi gagal: $reason"
-                    stopStream()
-                }
+                    override fun onConnectionFailed(reason: String) = runOnUiThread {
+                        tvStatus.text = "Koneksi gagal: $reason"
+                        stopStream()
+                    }
 
-                override fun onDisconnect() = runOnUiThread {
-                    tvStatus.text = "Terputus"
-                    stopStream()
-                }
+                    override fun onDisconnect() = runOnUiThread {
+                        tvStatus.text = "Terputus"
+                        stopStream()
+                    }
 
-                override fun onAuthError() = runOnUiThread {
-                    tvStatus.text = "Auth RTMP gagal"
-                    stopStream()
-                }
+                    override fun onAuthError() = runOnUiThread {
+                        tvStatus.text = "Auth RTMP gagal"
+                        stopStream()
+                    }
 
-                override fun onAuthSuccess() = runOnUiThread {
-                    tvStatus.text = "Auth RTMP OK"
-                }
+                    override fun onAuthSuccess() = runOnUiThread {
+                        tvStatus.text = "Auth RTMP OK"
+                    }
 
-                override fun onNewBitrate(bitrate: Long) = Unit
-            })
+                    override fun onNewBitrate(bitrate: Long) = Unit
+                })
+            }
         } catch (e: Exception) {
             tvStatus.text = "Gagal init kamera: ${e.localizedMessage}"
         }
